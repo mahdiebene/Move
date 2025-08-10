@@ -70,8 +70,9 @@
       let id = 'enemy_basic';
       if (this.type === 'charger') id = 'enemy_charger';
       else if (this.type === 'splinter') id = 'enemy_splinter';
-      const spr = SpriteFactory.get(id, this.color, (performance.now||Date.now)()/1000 + this._t);
-      if (spr){
+      const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000 + this._t;
+      const spr = SpriteFactory.get(id, this.color, t);
+      if (spr && spr.canvas){
         const s = spr.size; const half = s/2;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);

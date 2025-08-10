@@ -71,8 +71,9 @@
     }
     // Sprite render (fallback to circle if factory missing)
     if (window.SpriteFactory){
-      const spr = SpriteFactory.get('player_core', this.color, (performance.now||Date.now)()/1000);
-      if (spr){
+      const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000;
+      const spr = SpriteFactory.get('player_core', this.color, t);
+      if (spr && spr.canvas){
         const s = spr.size; const half = s/2;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
