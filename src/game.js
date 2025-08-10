@@ -34,6 +34,7 @@
     this.nearMissTimer = 0;
     this.type = 'normal'; // 'normal' | 'charger' | 'splinter'
     this._t = 0; // internal timer for variants
+  this.spriteScale = 1.6; // upscale factor for visibility
   }
   Enemy.prototype.update = function(dt, game){
     this._t += dt;
@@ -73,7 +74,7 @@
       const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000 + this._t;
       const spr = SpriteFactory.get(id, this.color, t);
       if (spr && spr.canvas){
-        const s = spr.size; const half = s/2;
+        const s = spr.size * this.spriteScale; const half = s/2;
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
       } else {
@@ -325,6 +326,8 @@
   const roll = Math.random();
   if (roll < 0.1 * prog){ e.type = 'charger'; e.color = '#ff7a7a'; }
   else if (roll < 0.18 * prog){ e.type = 'splinter'; e.color = '#ff5555'; e.r = 9; }
+  // Adjust collision radius to correlate with spriteScale (base sprite size ~12)
+  if (e.spriteScale){ e.r = Math.round((12 * e.spriteScale)/2 * 0.55); }
   e.color = this.getPalette().enemy;
   this.enemies.push(e);
   if (window.Particles && !this.options.reducedFx) Particles.spawnBurst(x, y, { n: 10, speed: 80, life: 0.3, size: 2, color: e.color });
@@ -531,7 +534,9 @@
               for (let k=0;k<n;k++){
                 const a = Math.random()*Math.PI*2; const s = this.enemyBaseSpeed*0.8;
                 const c = new Enemy(e.x + Math.cos(a)*6, e.y + Math.sin(a)*6, s);
-                c.r = 6; c.color = this.getPalette().enemy; c.type = 'normal';
+                c.spriteScale = 1.1; // smaller fragment
+                c.r = Math.round((12 * c.spriteScale)/2 * 0.55);
+                c.color = this.getPalette().enemy; c.type = 'normal';
                 this.enemies.push(c);
               }
             }
