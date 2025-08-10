@@ -69,10 +69,19 @@
         ctx.fill();
       }
     }
-    ctx.fillStyle = this.color;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fill();
+    // Sprite render (fallback to circle if factory missing)
+    if (window.SpriteFactory){
+      const spr = SpriteFactory.get('player_core', this.color, (performance.now||Date.now)()/1000);
+      if (spr){
+        const s = spr.size; const half = s/2;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
+      } else {
+        ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+    }
 
     // Dash cooldown ring UI
     const ready = this._cooldownTimer <= 0;

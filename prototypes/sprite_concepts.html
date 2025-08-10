@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><title>Pixel Drone Concepts</title>
+<style>
+ body{background:#111;color:#ddd;font:14px system-ui, sans-serif;margin:0;padding:0;display:flex;flex-direction:row;gap:24px}
+ #preview{flex:1;padding:16px}
+ canvas{background:#0b0c11;border:1px solid #223;margin:8px;image-rendering:pixelated;}
+ .section{margin-bottom:24px}
+ h2{font:600 16px system-ui;margin:8px 0;color:#8fd}
+ code{background:#222;padding:2px 4px;border-radius:4px;color:#9cf}
+ .note{color:#7a8ca0;font-size:12px;margin-top:4px}
+ .grid{display:flex;flex-wrap:wrap;gap:8px}
+ figure{margin:0;text-align:center}
+ figcaption{font-size:11px;color:#9ab;margin-top:2px}
+</style>
+</head>
+<body>
+<div id="preview">
+  <h1 style="color:#fff;font:600 20px system-ui">Pixel Drone Design Concepts</h1>
+  <p>Goal: Retro 90's pixel / arcade feel while keeping draw cost tiny. Each concept is rendered to a small offscreen canvas (8x8 / 12x12 / 16x16) then scaled up to game space. Can be drawn directly with Canvas path ops or pre-baked ImageBitmaps. Below are variants for player & enemies with palette tints.</p>
+  <div class="section">
+    <h2>Approach Overview</h2>
+    <ul>
+      <li><b>Tiny base resolution</b>: 8–16 px square per sprite → trivial fill cost.</li>
+      <li><b>Palette swap</b>: Use mask colors (e.g., mid gray #808080) then tint via <code>globalCompositeOperation='source-in'</code> or pre-generate recolored bitmaps per palette.</li>
+      <li><b>Procedural shapes</b>: Keep using vector draw to an offscreen canvas once, cache result as <code>ImageBitmap</code>.</li>
+      <li><b>Animation</b>: Minimal 2–3 frame bob / thruster flicker using a timer & alternate bitmaps.</li>
+      <li><b>Enemy differentiation</b>: Shape silhouettes + accent color ring / eye. Avoid per-pixel alpha noise: solid blocks → crisp scaling.</li>
+    </ul>
+  </div>
+  <div class="section">
+    <h2>Sprite Size Tradeoffs</h2>
+    <table style="border-collapse:collapse;font-size:12px">
+      <tr style="background:#182330"><th style="padding:4px 8px">Size</th><th style="padding:4px 8px">Pixels</th><th style="padding:4px 8px">Use</th><th style="padding:4px 8px">Pros</th><th style="padding:4px 8px">Cons</th></tr>
+      <tr><td style="padding:4px 8px">8x8</td><td style="padding:4px 8px">64</td><td style="padding:4px 8px">Bullets, mini splinters</td><td style="padding:4px 8px">Ultra cheap</td><td style="padding:4px 8px">Very low detail</td></tr>
+      <tr><td style="padding:4px 8px">12x12</td><td style="padding:4px 8px">144</td><td style="padding:4px 8px">Standard enemies</td><td style="padding:4px 8px">Balance clarity vs perf</td><td style="padding:4px 8px">Slightly more batching</td></tr>
+      <tr><td style="padding:4px 8px">16x16</td><td style="padding:4px 8px">256</td><td style="padding:4px 8px">Player sprite</td><td style="padding:4px 8px">Distinct silhouette</td><td style="padding:4px 8px">Still very small though</td></tr>
+    </table>
+  </div>
+  <div class="section">
+    <h2>Concept Sheets</h2>
+    <div class="grid" id="grid"></div>
+  </div>
+  <div class="section">
+    <h2>Integration Plan</h2>
+    <ol style="font-size:13px;line-height:1.5">
+      <li>Create a SpriteFactory that builds base monochrome canvases for each id + frame.</li>
+      <li>For each active palette: recolor once → cache <code>ImageBitmap</code> list.</li>
+      <li>In game render: drawImage(bitmap, x - w/2, y - h/2, w, h) instead of arc(). Keep collision radius ~ (w/2)*scale for simplicity.</li>
+      <li>Animate by selecting frame = (t * fps) % frames.</li>
+      <li>Optional outline: second pass strokeRect or glow using shadowBlur (already in system).</li>
+    </ol>
+  </div>
+  <div class="section">
+    <h2>Code Prototype</h2>
+    <p>Below we procedurally generate a few drones. Open devtools to tweak. Hover labels indicate intended use.</p>
+    <p class="note">All generated at runtime; cost is negligible since count is tiny and done once.</p>
+    <pre style="background:#141b24;padding:8px;border:1px solid #223;white-space:pre;overflow:auto;font-size:11px" id="code"></pre>
+  </div>
+</div>
+<script>
+const DESIGNS = [
+  { id:'player_core', size:16, frames:2, draw:(ctx,f)=>{ // central ring + eye + thrusters
+      ctx.clearRect(0,0,16,16);
+      // body
+      ctx.fillStyle='#808080'; ctx.fillRect(4,4,8,8);
+      // cut corners for octagon look
+      ctx.clearRect(4,4,2,2); ctx.clearRect(10,4,2,2); ctx.clearRect(4,10,2,2); ctx.clearRect(10,10,2,2);
+      // inner eye flicker
+      ctx.fillStyle = f? '#b0b0b0':'#c0c0c0'; ctx.fillRect(7,7,2,2);
+      // side antennae
+      ctx.fillStyle='#999'; ctx.fillRect(2,6,2,4); ctx.fillRect(12,6,2,4);
+      // bottom thruster animate
+      if(f){ ctx.fillStyle='#a0a0a0'; ctx.fillRect(6,12,4,2); } else { ctx.fillStyle='#909090'; ctx.fillRect(6,13,4,1); }
+  }},
+  { id:'enemy_basic', size:12, frames:2, draw:(ctx,f)=>{
+      ctx.clearRect(0,0,12,12);
+      ctx.fillStyle='#808080'; ctx.fillRect(3,3,6,6);
+      ctx.clearRect(3,3,1,1); ctx.clearRect(8,3,1,1); ctx.clearRect(3,8,1,1); ctx.clearRect(8,8,1,1);
+      ctx.fillStyle= f ? '#b5b5b5':'#c5c5c5'; ctx.fillRect(5,5,2,2);
+  }},
+  { id:'enemy_charger', size:12, frames:3, draw:(ctx,f)=>{ // spinner arms
+      ctx.clearRect(0,0,12,12);
+      ctx.fillStyle='#808080'; ctx.fillRect(4,4,4,4);
+      // arms rotate (f 0,1,2)
+      const arms = [
+        [[0,5,4,2],[8,5,4,2]], // horiz
+        [[5,0,2,4],[5,8,2,4]], // vert
+        [[0,5,4,2],[8,5,4,2]]  // reuse (simple 2-frame loop visually)
+      ];
+      for(const a of arms[f]) ctx.fillRect(...a);
+      ctx.fillStyle = '#b5b5b5'; ctx.fillRect(5,5,2,2);
+  }},
+  { id:'enemy_splinter', size:12, frames:2, draw:(ctx,f)=>{
+      ctx.clearRect(0,0,12,12);
+      ctx.fillStyle='#808080'; ctx.fillRect(4,4,4,4);
+      if(f){ ctx.fillStyle='#a0a0a0'; ctx.fillRect(3,4,1,4); ctx.fillRect(8,4,1,4);} else { ctx.fillStyle='#a0a0a0'; ctx.fillRect(4,3,4,1); ctx.fillRect(4,8,4,1);} // subtle vibration
+      ctx.fillStyle='#c5c5c5'; ctx.fillRect(5,5,2,2);
+  }},
+  { id:'enemy_fragment', size:8, frames:2, draw:(ctx,f)=>{
+      ctx.clearRect(0,0,8,8);
+      ctx.fillStyle='#808080'; ctx.fillRect(2,2,4,4);
+      if(f) ctx.fillStyle='#b0b0b0'; else ctx.fillStyle='#909090';
+      ctx.fillRect(3,3,2,2);
+  }},
+];
+
+function buildSprites(){
+  const items=[];
+  for(const d of DESIGNS){
+    const frames=[]; const baseSize=d.size;
+    for(let f=0; f<d.frames; f++){
+      const c=document.createElement('canvas'); c.width=c.height=baseSize;
+      const cx=c.getContext('2d');
+      d.draw(cx,f);
+      frames.push(c);
+    }
+    items.push({id:d.id,frames,size:baseSize});
+  }
+  return items;
+}
+
+function tintCanvas(src, color){
+  const c=document.createElement('canvas'); c.width=src.width; c.height=src.height;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(src,0,0);
+  ctx.globalCompositeOperation='source-in';
+  ctx.fillStyle=color; ctx.fillRect(0,0,c.width,c.height);
+  return c;
+}
+
+function createBitmapSet(item, colors){
+  const out={};
+  for(const key in colors){
+    out[key]=item.frames.map(f=>tintCanvas(f, colors[key]));
+  }
+  return out;
+}
+
+const palette={ player:'#6cf', enemy:'#f66', alt:'#7fff8a', orb:'#ffd66b'};
+const sprites=buildSprites();
+
+const grid=document.getElementById('grid');
+for(const s of sprites){
+  const sheet=createBitmapSet(s,{ base:'#6f7f8f', tint:'#9cf', enemy:'#f66'});
+  const wrap=document.createElement('figure');
+  const label=document.createElement('figcaption'); label.textContent=s.id; wrap.appendChild(label);
+  for(let i=0;i<s.frames;i++){
+    const big=document.createElement('canvas'); big.width=big.height=s.size*4; // scale 4x
+    const bctx=big.getContext('2d'); bctx.imageSmoothingEnabled=false;
+    bctx.drawImage(sheet.base[i],0,0,big.width,big.height);
+    wrap.appendChild(big);
+  }
+  grid.appendChild(wrap);
+}
+
+// show source code for easy copy
+const codeBlock=document.getElementById('code');
+codeBlock.textContent = DESIGNS.map(d=>d.id+': '+d.size+'px '+d.frames+'f').join('\n') + "\n\nFactory pseudo-code:\nSpriteFactory.get(id,palette,time) -> returns frame canvas";
+</script>
+</body>
+</html>

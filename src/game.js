@@ -65,19 +65,22 @@
     }
   };
   Enemy.prototype.render = function(ctx){
-    if (this.type === 'charger'){
-      // charge tell ring pulsing
-      ctx.save();
-      const pulse = 0.5 + Math.sin(this._t*8)*0.5;
-      ctx.strokeStyle = 'rgba(255,255,255,'+(0.2+0.3*pulse).toFixed(3)+')';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(this.x, this.y, this.r+4+2*pulse, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
+    // Use sprite if available
+    if (window.SpriteFactory){
+      let id = 'enemy_basic';
+      if (this.type === 'charger') id = 'enemy_charger';
+      else if (this.type === 'splinter') id = 'enemy_splinter';
+      const spr = SpriteFactory.get(id, this.color, (performance.now||Date.now)()/1000 + this._t);
+      if (spr){
+        const s = spr.size; const half = s/2;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
+      } else {
+        ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
     }
-    ctx.fillStyle = this.color;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fill();
   };
 
   const Game = {
