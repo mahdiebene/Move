@@ -3,7 +3,7 @@
 
 // CDN modular imports (can be swapped for npm modules in a build step later)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, updateProfile, linkWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc, query, where, orderBy, limit, getDocs, runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // Inject your config via a global window.FB_CFG = {...}; before loading this, or edit below.
@@ -26,6 +26,18 @@ provider.setCustomParameters({ prompt: 'select_account' });
 
 export async function signInWithGoogle(){
   const res = await signInWithPopup(auth, provider);
+  await ensureUserDoc(res.user);
+  return res.user;
+}
+export async function signInGuest(){
+  const res = await signInAnonymously(auth);
+  await ensureUserDoc(res.user);
+  return res.user;
+}
+export async function upgradeGuestToGoogle(){
+  if(!auth.currentUser || !auth.currentUser.isAnonymous) return auth.currentUser;
+  const res = await linkWithPopup(auth.currentUser, provider);
+  // ensure user doc still exists (may want to merge displayName)
   await ensureUserDoc(res.user);
   return res.user;
 }
@@ -55,6 +67,14 @@ export async function ensureUserDoc(user){
   } else {
     await updateDoc(ref, { lastLoginAt: serverTimestamp() });
   }
+}
+
+export async function updateDisplayName(name){
+  const u = auth.currentUser; if(!u) return;
+  name = (name||'').trim().slice(0,32) || 'Player';
+  try { await updateProfile(u, { displayName: name }); } catch(e){}
+  const ref = doc(db,'users',u.uid); try { await updateDoc(ref,{ displayName: name }); } catch(e){}
+  return name;
 }
 
 export async function updateStreak(uid, todayISO){
@@ -136,6 +156,7 @@ export async function getUserDoc(uid){
 }
 
 window.AstroBackend = {
-  signInWithGoogle, signOutUser, onUserChanged,
+  signInWithGoogle, signInGuest, upgradeGuestToGoogle, signOutUser, onUserChanged,
   submitRun, updateStreak, fetchDailyTop, incrementLifetime, getUserDoc
+  , updateDisplayName
 };

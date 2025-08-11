@@ -17,13 +17,22 @@
     <a href="#about">About</a>
     <a href="#tech">Tech</a>
   </nav>
-  <div id="authBox" style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-    <button id="btnSignIn" style="background:#203042;border:1px solid #2b3c4b;color:#8dd4ff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">Sign In</button>
-    <div id="userBadge" style="display:none;align-items:center;gap:8px;">
-      <img id="userPic" src="" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #2b3c4b;" />
-      <span id="userName" style="font:500 12px system-ui;color:#b8c7d6;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  <div id="authBox" style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+    <div id="statusDot" title="Offline" style="width:10px;height:10px;border-radius:50%;background:#555;box-shadow:0 0 4px rgba(0,0,0,.6);"></div>
+    <button id="btnGuest" style="background:#203042;border:1px solid #2b3c4b;color:#8dd4ff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">Guest</button>
+    <button id="btnSignIn" style="background:#203042;border:1px solid #2b3c4b;color:#8dd4ff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">Google</button>
+    <div id="userBadge" style="display:none;align-items:center;gap:8px;position:relative;">
+      <img id="userPic" src="" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #2b3c4b;cursor:pointer;" />
+      <span id="userName" style="font:500 12px system-ui;color:#b8c7d6;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;"></span>
       <span id="userStreak" style="font:600 11px system-ui;color:#ffd66b;"></span>
-      <button id="btnSignOut" title="Sign Out" style="background:#35222a;border:1px solid #4c2c38;color:#ff9faf;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">✕</button>
+      <div id="profilePanel" style="display:none;position:absolute;top:42px;right:0;background:#14202b;border:1px solid #203042;border-radius:10px;padding:12px 14px;min-width:220px;z-index:40;box-shadow:0 8px 24px -10px rgba(0,0,0,.7);">
+        <div style="font:600 13px system-ui;color:#fff;margin-bottom:8px;">Profile</div>
+        <label style="display:block;font:500 11px system-ui;color:#8aa2b5;margin-bottom:4px;">Display Name</label>
+        <input id="inpDisplayName" type="text" maxlength="32" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #2b3c4b;background:#0f1821;color:#cfe;font:12px system-ui;margin-bottom:8px;" />
+        <button id="btnSaveName" style="background:#256dff;border:1px solid #1d56c8;color:#fff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;width:100%;margin-bottom:8px;">Save</button>
+        <button id="btnUpgrade" style="display:none;background:#284052;border:1px solid #34586a;color:#8dd4ff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;width:100%;margin-bottom:8px;">Link Google</button>
+        <button id="btnSignOut" title="Sign Out" style="background:#35222a;border:1px solid #4c2c38;color:#ff9faf;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;width:100%;">Sign Out</button>
+      </div>
     </div>
   </div>
 </header>
@@ -153,26 +162,46 @@
   if(location.hash.startsWith('#play-')){ openGame(location.hash.replace('#play-','')); }
   // Auth UI wiring
   const btnIn = document.getElementById('btnSignIn');
+  const btnGuest = document.getElementById('btnGuest');
   const btnOut = document.getElementById('btnSignOut');
   const userBadge = document.getElementById('userBadge');
   const userName = document.getElementById('userName');
   const userPic = document.getElementById('userPic');
   const userStreak = document.getElementById('userStreak');
+  const statusDot = document.getElementById('statusDot');
+  const profilePanel = document.getElementById('profilePanel');
+  const inpDisplayName = document.getElementById('inpDisplayName');
+  const btnSaveName = document.getElementById('btnSaveName');
+  const btnUpgrade = document.getElementById('btnUpgrade');
+  function setStatus(color,title){ if(statusDot){ statusDot.style.background=color; statusDot.title=title; } }
+  window.addEventListener('online', ()=> setStatus('#2ecc71','Online')); window.addEventListener('offline', ()=> setStatus('#c0392b','Offline'));
+  setStatus(navigator.onLine? '#2ecc71':'#c0392b', navigator.onLine? 'Online':'Offline');
   if(window.AstroBackend){
     btnIn?.addEventListener('click', async()=>{ try { await AstroBackend.signInWithGoogle(); } catch(e){ console.warn(e);} });
+    btnGuest?.addEventListener('click', async()=>{ try { await AstroBackend.signInGuest(); } catch(e){ console.warn(e);} });
     btnOut?.addEventListener('click', ()=> AstroBackend.signOutUser());
     AstroBackend.onUserChanged(async(u)=>{
       if(u){
         btnIn.style.display='none'; userBadge.style.display='flex';
+        btnGuest.style.display='none';
         userPic.src = u.photoURL || 'https://dummyimage.com/64x64/203042/ffffff&text=U';
         userName.textContent = u.displayName || 'Player';
         const doc = await AstroBackend.getUserDoc(u.uid); if(doc){ userStreak.textContent = doc.streakCount>0 ? `🔥${doc.streakCount}` : ''; }
+        inpDisplayName.value = u.displayName || '';
+        // Show upgrade option if anonymous
+        if(u.isAnonymous){ btnUpgrade.style.display='inline-block'; } else { btnUpgrade.style.display='none'; }
       } else {
-        btnIn.style.display='inline-block'; userBadge.style.display='none'; userStreak.textContent='';
+        btnIn.style.display='inline-block'; btnGuest.style.display='inline-block'; userBadge.style.display='none'; userStreak.textContent='';
       }
     });
     // Update streak once per day after login
     AstroBackend.onUserChanged(async(u)=>{ if(u){ try { await AstroBackend.updateStreak(u.uid, new Date().toISOString().slice(0,10)); const doc = await AstroBackend.getUserDoc(u.uid); if(doc){ userStreak.textContent = doc.streakCount>0 ? `🔥${doc.streakCount}` : ''; } } catch(e){} } });
+    btnSaveName?.addEventListener('click', async()=>{ const v = inpDisplayName.value.trim(); if(!v) return; const name = await AstroBackend.updateDisplayName(v); userName.textContent = name; });
+    btnUpgrade?.addEventListener('click', async()=>{ try { await AstroBackend.upgradeGuestToGoogle(); } catch(e){ console.warn(e);} });
+    function toggleProfilePanel(){ profilePanel.style.display = profilePanel.style.display==='none' || !profilePanel.style.display ? 'block':'none'; }
+    userPic?.addEventListener('click', toggleProfilePanel);
+    userName?.addEventListener('click', toggleProfilePanel);
+    document.addEventListener('click', (e)=>{ if(profilePanel.style.display==='block' && !profilePanel.contains(e.target) && !userBadge.contains(e.target)){ profilePanel.style.display='none'; } }, true);
   }
 </script>
 </body>
