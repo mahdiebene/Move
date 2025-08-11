@@ -66,23 +66,22 @@
     }
   };
   Enemy.prototype.render = function(ctx){
-    // Use sprite if available
-    if (window.SpriteFactory){
-      let id = 'enemy_basic';
-      if (this.type === 'charger') id = 'enemy_charger';
-      else if (this.type === 'splinter') id = 'enemy_splinter';
-      const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000 + this._t;
-      const spr = SpriteFactory.get(id, this.color, t);
+    // DroneFactory first
+    const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000 + this._t;
+    let drew=false;
+    if (window.DroneFactory){
+      let vid='enemy_basic';
+      if (this.type==='charger') vid='enemy_charger'; else if (this.type==='splinter') vid='enemy_splinter';
+      const spr = DroneFactory.get(vid, this.color, t);
       if (spr && spr.canvas){
-        const s = spr.size * this.spriteScale; const half = s/2;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
-      } else {
-        ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
-      }
-    } else {
-      ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+        const s = spr.size; const half=s/2; ctx.imageSmoothingEnabled=false; ctx.drawImage(spr.canvas, this.x-half, this.y-half, s, s); drew=true; this.r = spr.radius; }
     }
+    if (!drew && window.SpriteFactory){
+      let id = 'enemy_basic'; if (this.type==='charger') id='enemy_charger'; else if (this.type==='splinter') id='enemy_splinter';
+      const spr = SpriteFactory.get(id, this.color, t);
+      if (spr && spr.canvas){ const s=spr.size*this.spriteScale; const half=s/2; ctx.imageSmoothingEnabled=false; ctx.drawImage(spr.canvas,this.x-half,this.y-half,s,s); drew=true; }
+    }
+    if (!drew){ ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); }
   };
 
   const Game = {

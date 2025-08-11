@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Quad Drone Pixel Concepts</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body{margin:0;background:#0d1116;color:#cfd8e3;font:14px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:16px 20px;border-bottom:1px solid #1d2732;}
+  h1{margin:0;font-size:20px;font-weight:600;color:#fff;}
+  main{padding:18px 22px;display:flex;flex-direction:row;gap:38px;flex-wrap:wrap;}
+  section{max-width:380px;line-height:1.5}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#0b0f15;border:1px solid #1f2b38;margin:6px;}
+  .sheet{display:flex;flex-wrap:wrap;align-items:flex-start}
+  figure{margin:4px 10px 14px 0;text-align:center}
+  figcaption{font-size:11px;color:#8fa8c2;margin-top:4px;white-space:nowrap}
+  code{background:#182430;padding:2px 4px;border-radius:4px;color:#8fd}
+  .note{font-size:12px;color:#7a8da3;margin-top:4px}
+  ul.compact{padding-left:18px;margin:6px 0 12px}
+  ul.compact li{margin:2px 0}
+  .gridline{background:repeating-linear-gradient(0deg,#0b0f15,#0b0f15 39px,#111823 40px),repeating-linear-gradient(90deg,#0b0f15,#0b0f15 39px,#111823 40px);}
+</style>
+</head>
+<body>
+<header>
+  <h1>Quad Drone 2D Pixel Concepts</h1>
+  <div style="font-size:13px;color:#8fa8c2">Procedural 2D sprites: body + 4 fans (rotors). Lightweight (≤24x24), recolor & animate by rotating rotor quads or cycling fan frames.</div>
+</header>
+<main>
+  <section style="flex:1 1 420px;min-width:360px">
+    <h2 style="margin:0 0 8px;font-size:16px;color:#fff">Design Goals</h2>
+    <ul class="compact">
+      <li><b>Readable silhouette:</b> Cross / plus layout with central core + 4 rotors.</li>
+      <li><b>Tiny base size:</b> 20–24 px square → trivial draw cost.</li>
+      <li><b>Procedural:</b> Canvas primitives (rect / circle) once → cache ImageBitmaps.</li>
+      <li><b>Palette swap:</b> Tint layer or param for player/enemy variants.</li>
+      <li><b>Animation:</b> 2 modes: (A) rotor spin frame cycle, (B) whole-drone subtle bob.</li>
+      <li><b>Scalability:</b> Body & rotors separated so upgrades (shield, power) overlay cleanly.</li>
+    </ul>
+    <h2 style="margin:14px 0 8px;font-size:16px;color:#fff">Variants</h2>
+    <ol style="margin:4px 0 12px;padding-left:18px;font-size:13px">
+      <li><b>Player Core:</b> Rounded diamond hull + bright center diode; rotors with cyan accents.</li>
+      <li><b>Basic Enemy:</b> Squared hull + dark rotors (red tips).</li>
+      <li><b>Charger:</b> Tri-slat hull; rotors thicker; warning ring (pulse).</li>
+      <li><b>Splinter:</b> Compact hull; spindly rotors; slightly desynced spin for jitter feel.</li>
+      <li><b>Fragment:</b> Tiny 12px mini-drone using same pipeline.</li>
+    </ol>
+    <p class="note">Below canvases show live animation. Hover to pause (debug) / click cycles palettes.</p>
+    <div style="font-size:12px;color:#65788c">Perf note: Even 200 drones @ 24x24 → &lt;0.5MB overdraw; CPU limited only by game logic, not sprite drawing.</div>
+  </section>
+  <section style="flex:1 1 520px;min-width:420px">
+    <h2 style="margin:0 0 8px;font-size:16px;color:#fff">Live Preview</h2>
+    <div id="preview" class="gridline" style="width:520px;height:320px;position:relative;border:1px solid #1e2833"></div>
+    <div class="note">Fans are drawn procedurally; rotation is visual-only (no physics change). Center color / outline swapped by palette. Charger shows pulse ring.</div>
+    <h3 style="margin:14px 0 6px;font-size:15px;color:#fff">Static Sheets (Frames)</h3>
+    <div class="sheet" id="sheets"></div>
+  </section>
+  <section style="flex:1 1 340px;min-width:300px">
+    <h2 style="margin:0 0 8px;font-size:16px;color:#fff">Integration Plan</h2>
+    <ol style="font-size:13px;line-height:1.5;margin:4px 0 12px;padding-left:18px">
+      <li><code>DroneFactory.build(id,palette)</code> -> returns {frames:[ImageBitmap], w,h,radius}.</li>
+      <li>On palette change, rebuild only recolor step (rotor gray kept).</li>
+      <li>Game render: choose frame = (time * spinFPS + phase[id]) % frames.</li>
+      <li>Collision radius: precomputed (bodyHullRadius * scale).</li>
+      <li>Optionally draw a glow or damage flash by overlay tint in composite pass.</li>
+    </ol>
+    <h2 style="margin:14px 0 8px;font-size:16px;color:#fff">Tunable Style Params</h2>
+    <ul class="compact" style="font-size:13px">
+      <li>Rotor blade thickness, length, tip color.</li>
+      <li>Hull corner roundness & outline strength.</li>
+      <li>Center diode size & blink rate.</li>
+      <li>Spin speed per type (charger faster, splinter jittery).</li>
+      <li>Pulsing outer ring (charger wind-up).</li>
+    </ul>
+  </section>
+</main>
+<script>
+const PAL_SETS = [
+  { name:'Base', player:'#44c8ff', enemy:'#ff6363', accent:'#ffd66b' },
+  { name:'Neon', player:'#39a0ff', enemy:'#ff3b3b', accent:'#ffff6b' },
+  { name:'Sunset', player:'#ff8e53', enemy:'#ff3b30', accent:'#ffd166' },
+  { name:'Viridian', player:'#36f5a7', enemy:'#ff5870', accent:'#b4ff5d' }
+];
+let paletteIndex = 0;
+
+const DESIGNS = [
+  { id:'player', size:24, spinFPS:10, frames:8, body:'#202a35', type:'player' },
+  { id:'enemy_basic', size:22, spinFPS:8, frames:8, body:'#26262c', type:'enemy' },
+  { id:'enemy_charger', size:22, spinFPS:14, frames:8, body:'#2b1e1e', type:'enemy', pulse:true },
+  { id:'enemy_splinter', size:20, spinFPS:12, frames:8, body:'#1f262b', type:'enemy', jitter:true },
+  { id:'fragment', size:14, spinFPS:11, frames:8, body:'#242c33', type:'enemy' }
+];
+
+function drawRotor(ctx,cx,cy,r,angle,color,tipColor){
+  const len = r*0.95, w = Math.max(2, r*0.28);
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.fillRect(-len*0.5,-w/2,len,w);
+  ctx.fillStyle = tipColor;
+  ctx.fillRect(len*0.5-3,-w/2,3,w);
+  ctx.restore();
+}
+function drawBody(ctx,size,bodyColor,coreColor){
+  const s=size;
+  ctx.fillStyle=bodyColor;
+  const pad=4; const w=s-pad*2; const h=w; const r=4;
+  ctx.beginPath();
+  ctx.moveTo(pad+r,pad);
+  ctx.lineTo(pad+w-r,pad);
+  ctx.quadraticCurveTo(pad+w,pad,pad+w,pad+r);
+  ctx.lineTo(pad+w,pad+h-r);
+  ctx.quadraticCurveTo(pad+w,pad+h,pad+w-r,pad+h);
+  ctx.lineTo(pad+r,pad+h);
+  ctx.quadraticCurveTo(pad,pad+h,pad,pad+h-r);
+  ctx.lineTo(pad,pad+r);
+  ctx.quadraticCurveTo(pad,pad,pad+r,pad);
+  ctx.closePath();
+  ctx.fill();
+  // outline
+  ctx.strokeStyle='rgba(255,255,255,0.07)';
+  ctx.lineWidth=1; ctx.stroke();
+  // core diode
+  ctx.fillStyle=coreColor;
+  ctx.fillRect(s/2-2,s/2-2,4,4);
+}
+function makeFrames(design,pal){
+  const frames=[];
+  for(let f=0; f<design.frames; f++){
+    const c=document.createElement('canvas'); c.width=c.height=design.size; const ctx=c.getContext('2d');
+    ctx.imageSmoothingEnabled=false;
+    const angleBase = (Math.PI*2)*(f/design.frames);
+    // Rotors (draw behind first)
+    const cx=design.size/2, cy=design.size/2; const rr=design.size*0.40;
+    for(let i=0;i<4;i++){
+      const a = angleBase + i*Math.PI/2;
+      const phase = (design.jitter? (Math.sin(f*0.9 + i*1.3)*0.25):0);
+      drawRotor(ctx,cx+Math.cos(a)*3,cy+Math.sin(a)*3, rr, a+phase, '#7d868d', design.type==='player'? pal.player : pal.enemy);
+    }
+    drawBody(ctx,design.size,design.type==='player'? '#22343f' : design.body, design.type==='player'? pal.player : pal.enemy);
+    // Pulse ring for charger
+    if(design.pulse){
+      const pulse = 0.55 + Math.sin(f/design.frames * Math.PI*2)*0.45;
+      ctx.strokeStyle = `rgba(255,120,120,${(0.25+0.35*pulse).toFixed(2)})`;
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(cx,cy, design.size*0.46, 0, Math.PI*2); ctx.stroke();
+    }
+    frames.push(c);
+  }
+  return frames;
+}
+
+const cache={};
+function getFrames(id,pal){
+  const key=id+'|'+pal.name; if(cache[key]) return cache[key];
+  const d=DESIGNS.find(x=>x.id===id); if(!d) return null;
+  return cache[key]=makeFrames(d,pal);
+}
+
+// Static sheets
+const sheetWrap=document.getElementById('sheets');
+function rebuildSheets(){
+  sheetWrap.innerHTML='';
+  const pal = PAL_SETS[paletteIndex];
+  for(const d of DESIGNS){
+    const fs = getFrames(d.id,pal);
+    const fig=document.createElement('figure');
+    const label=document.createElement('figcaption');
+    label.textContent=`${d.id} (${pal.name})`;
+    fig.appendChild(label);
+    for(let i=0;i<fs.length;i+=Math.floor(fs.length/4)){ // show 4 frames sampling spin
+      const can=document.createElement('canvas'); can.width=fs[0].width; can.height=fs[0].height;
+      const cctx=can.getContext('2d'); cctx.imageSmoothingEnabled=false; cctx.drawImage(fs[i],0,0);
+      fig.appendChild(can);
+    }
+    sheetWrap.appendChild(fig);
+  }
+}
+
+// Live preview drones
+const preview=document.getElementById('preview');
+const live=[];
+function spawnLive(){
+  preview.innerHTML=''; live.length=0;
+  const pal = PAL_SETS[paletteIndex];
+  for(const d of DESIGNS){
+    const canvas=document.createElement('canvas');
+    const scale=2.2; // upscale for preview clarity
+    canvas.width=d.size*scale; canvas.height=d.size*scale; canvas.style.width=canvas.width+'px'; canvas.style.height=canvas.height+'px';
+    canvas.title=d.id;
+    preview.appendChild(canvas);
+    live.push({ design:d, canvas, t:Math.random()*100 });
+  }
+}
+
+let paused=false;
+preview.addEventListener('pointerenter',()=>paused=true);
+preview.addEventListener('pointerleave',()=>paused=false);
+preview.addEventListener('click',()=>{ paletteIndex=(paletteIndex+1)%PAL_SETS.length; rebuildSheets(); spawnLive(); });
+
+function loop(){
+  const pal = PAL_SETS[paletteIndex];
+  for(const item of live){
+    if(!paused) item.t += 1/60;
+    const d=item.design; const frames=getFrames(d.id,pal);
+    const frame = frames[Math.floor((item.t * d.spinFPS)%frames.length)];
+    const ctx=item.canvas.getContext('2d');
+    ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,item.canvas.width,item.canvas.height);
+    ctx.drawImage(frame,0,0,item.canvas.width,item.canvas.height);
+  }
+  requestAnimationFrame(loop);
+}
+
+rebuildSheets();
+spawnLive();
+loop();
+</script>
+</body>
+</html>

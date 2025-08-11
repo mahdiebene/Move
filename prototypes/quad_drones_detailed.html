@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Quad Drone Detailed Design Lab</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { --bg:#0d1116; --panel:#16202a; --panel2:#1e2b36; --accent:#49c2ff; }
+  * { box-sizing: border-box; }
+  body{margin:0;background:var(--bg);color:#d9e2ec;font:14px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;min-height:100vh;}
+  aside{width:320px;background:var(--panel);border-right:1px solid #203040;padding:16px 18px;overflow:auto;}
+  main{flex:1;display:flex;flex-direction:column;}
+  h1{margin:0 0 12px;font-size:20px;font-weight:600;color:#fff;}
+  h2{margin:22px 0 6px;font-size:14px;color:#8fc8ff;text-transform:uppercase;letter-spacing:1px;}
+  label{display:flex;align-items:center;justify-content:space-between;margin:4px 0;font-size:12px;color:#8fa8c2;}
+  label span{flex:1;}
+  input[type=range]{width:140px;margin-left:6px;}
+  select,button{background:#223242;color:#e6f1fb;border:1px solid #2f4456;border-radius:4px;padding:4px 8px;font:12px system-ui;margin:2px 0;}
+  button{cursor:pointer;}
+  button:hover{background:#294458;}
+  code{background:#223242;padding:2px 5px;border-radius:4px;font-size:12px;color:#8fd;}
+  #previewWrap{flex:1;display:flex;flex-direction:row;overflow:hidden;}
+  #stage{flex:1;position:relative;background:#0b0f15;image-rendering:pixelated;}
+  #stageCanvas{position:absolute;left:0;top:0;width:100%;height:100%;image-rendering:pixelated;}
+  #gallery{width:300px;background:var(--panel2);border-left:1px solid #223344;padding:12px;overflow:auto;}
+  .thumb{display:inline-block;margin:4px;border:1px solid #223;padding:4px;background:#10161d;text-align:center;font-size:10px;color:#9ab;}
+  .thumb canvas{display:block;margin:0 auto 4px;image-rendering:pixelated;}
+  .row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;}
+  .kpi{display:inline-block;padding:4px 6px;margin:2px 4px 2px 0;background:#223242;border-radius:4px;font-size:11px;color:#9fc;}
+  .badge{background:#2e4760;color:#cfe;font-size:10px;padding:2px 4px;margin-left:6px;border-radius:3px;text-transform:uppercase;letter-spacing:0.5px;}
+  .legend{font-size:11px;color:#7a8da3;margin:6px 0 2px;}
+  .gridOverlay{background:repeating-linear-gradient(0deg,#0b0f15,#0b0f15 39px,#11202c 40px),repeating-linear-gradient(90deg,#0b0f15,#0b0f15 39px,#11202c 40px);}  
+  details summary{cursor:pointer;}
+  pre{background:#111b24;font-size:11px;padding:10px;border:1px solid #203040;border-radius:6px;overflow:auto;}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Drone Design Lab</h1>
+  <p style="font-size:12px;line-height:1.4;color:#9ab">Interactive playground for 2D quad drones (body + 4 rotors). Adjust parameters, see animation, export frame data for integration.</p>
+  <h2>Palette</h2>
+  <div id="paletteList" class="row"></div>
+  <button id="addPaletteBtn" style="margin-top:4px">Add Palette</button>
+  <h2>Global Params</h2>
+  <label><span>Spin FPS</span><input id="spinFPS" type="range" min="4" max="30" value="12"></label>
+  <label><span>Frames</span><input id="frameCount" type="range" min="4" max="16" value="8"></label>
+  <label><span>Body Size</span><input id="bodySize" type="range" min="16" max="32" value="24"></label>
+  <label><span>Rotor Len %</span><input id="rotorLen" type="range" min="50" max="110" value="95"></label>
+  <label><span>Rotor Thick %</span><input id="rotorThick" type="range" min="15" max="60" value="28"></label>
+  <label><span>Tip Len px</span><input id="tipLen" type="range" min="2" max="8" value="3"></label>
+  <label><span>Diode Size</span><input id="diodeSize" type="range" min="2" max="6" value="4"></label>
+  <label><span>Pulse Amp</span><input id="pulseAmp" type="range" min="0" max="100" value="45"></label>
+  <label><span>Bob Amp</span><input id="bobAmp" type="range" min="0" max="6" value="2"></label>
+  <h2>Variants</h2>
+  <div id="variantList"></div>
+  <button id="addVariantBtn">Add Variant</button>
+  <h2>Export</h2>
+  <button id="exportBtn">Export JSON Frames</button>
+  <button id="atlasBtn">Build Atlas</button>
+  <div id="exportStatus" style="font-size:11px;color:#8fd;margin-top:6px"></div>
+  <h2>Perf</h2>
+  <div id="perf" style="font-size:11px;color:#9ab">—</div>
+  <details open style="margin-top:10px">
+    <summary style="font-size:12px;color:#8fc8ff">Integration Notes</summary>
+    <pre>// Example contract (game side):
+const DroneFactory = {
+  get(id, paletteName, t) => { canvas, w, h, radius }
+};
+
+// Preload once per palette:
+DroneFactory.preparePalette(palette);
+
+// Render:
+const spr = DroneFactory.get('enemy_charger','Base',elapsed);
+ctx.drawImage(spr.canvas,x-spr.w/2,y-spr.h/2,spr.w,spr.h);
+
+// Collision:
+// Use spr.radius or custom mapping.
+</pre>
+  </details>
+</aside>
+<main>
+  <div id="previewWrap">
+    <div id="stage" class="gridOverlay">
+      <canvas id="stageCanvas" width="800" height="500"></canvas>
+    </div>
+    <div id="gallery"><h3 style="margin:4px 0 8px;font:600 14px system-ui;color:#fff">Frame Samples</h3><div id="thumbs"></div></div>
+  </div>
+</main>
+<script>
+// ---------------- Palette & Variants ----------------
+const palettes = [
+  { name:'Base', player:'#44c8ff', enemy:'#ff6363', accent:'#ffd66b', blade:'#7d868d' },
+  { name:'Neon', player:'#39a0ff', enemy:'#ff3b3b', accent:'#ffff6b', blade:'#8a94a0' },
+  { name:'Viridian', player:'#36f5a7', enemy:'#ff5870', accent:'#b4ff5d', blade:'#7b8f86' }
+];
+
+let variants = [
+  { id:'player', role:'player', size:24, spinMul:1.0, pulse:true, pulseColor:'rgba(80,255,220,', pulseWidth:2, bob:true },
+  { id:'enemy_basic', role:'enemy', size:22, spinMul:0.8 },
+  { id:'enemy_charger', role:'enemy', size:22, spinMul:1.4, pulse:true, pulseColor:'rgba(255,120,120,', pulseWidth:2 },
+  { id:'enemy_splinter', role:'enemy', size:20, spinMul:1.2, jitter:true },
+  { id:'fragment', role:'enemy', size:14, spinMul:1.1 }
+];
+
+// -------------- Parameter Inputs -----------------
+const Q = id=>document.getElementById(id);
+const params = {
+  spinFPS: Q('spinFPS'), frameCount: Q('frameCount'), bodySize: Q('bodySize'),
+  rotorLen: Q('rotorLen'), rotorThick: Q('rotorThick'), tipLen: Q('tipLen'),
+  diodeSize: Q('diodeSize'), pulseAmp: Q('pulseAmp'), bobAmp: Q('bobAmp')
+};
+Object.values(params).forEach(inp=> inp.addEventListener('input', ()=>{ rebuildAll(); }));
+
+// -------------- Variant Editing UI -----------------
+const variantList = Q('variantList');
+function rebuildVariantUI(){
+  variantList.innerHTML='';
+  variants.forEach(v=>{
+    const wrap=document.createElement('div');
+    wrap.style.cssText='border:1px solid #223642;margin:4px 0;padding:4px 6px;font-size:11px;background:#131c23;border-radius:4px;';
+    wrap.innerHTML=`<b style='color:#cfe'>${v.id}</b> <span class='badge'>${v.role}</span><br>`;
+    // size
+    const sizeInp=document.createElement('input'); sizeInp.type='range'; sizeInp.min=12; sizeInp.max=36; sizeInp.value=v.size; sizeInp.style.width='100%'; sizeInp.oninput=()=>{ v.size=parseInt(sizeInp.value); rebuildAll(); };
+    wrap.appendChild(sizeInp);
+    // spin
+    const spinInp=document.createElement('input'); spinInp.type='range'; spinInp.min=0.3; spinInp.max=2.5; spinInp.step=0.1; spinInp.value=v.spinMul; spinInp.style.width='100%'; spinInp.oninput=()=>{ v.spinMul=parseFloat(spinInp.value); rebuildAll(); };
+    wrap.appendChild(spinInp);
+    // toggles
+    ['pulse','jitter','bob'].forEach(flag=>{
+      const b=document.createElement('button'); b.textContent=flag+ (v[flag]?'✓':''); b.onclick=()=>{ v[flag]=!v[flag]; b.textContent=flag+(v[flag]?'✓':''); rebuildAll(); }; wrap.appendChild(b);
+    });
+    const del=document.createElement('button'); del.textContent='Del'; del.style.float='right'; del.onclick=()=>{ variants=variants.filter(x=>x!==v); rebuildVariantUI(); rebuildAll(); }; wrap.appendChild(del);
+    variantList.appendChild(wrap);
+  });
+}
+Q('addVariantBtn').onclick=()=>{ const nid='var'+Math.floor(Math.random()*999); variants.push({ id:nid, role:'enemy', size:22, spinMul:1 }); rebuildVariantUI(); rebuildAll(); };
+rebuildVariantUI();
+
+// -------------- Palette UI -----------------
+const paletteList=Q('paletteList');
+function rebuildPaletteUI(){
+  paletteList.innerHTML='';
+  palettes.forEach((p,i)=>{
+    const btn=document.createElement('button');
+    btn.textContent=p.name; btn.style.flex='1 1 auto'; btn.onclick=()=>{ activePaletteIndex=i; rebuildAll(); };
+    paletteList.appendChild(btn);
+  });
+}
+Q('addPaletteBtn').onclick=()=>{ const n=prompt('Palette name?','Custom'); if(!n) return; palettes.push({ name:n, player:'#55ccff', enemy:'#ff6677', accent:'#ffd66b', blade:'#7d868d' }); rebuildPaletteUI(); };
+rebuildPaletteUI();
+let activePaletteIndex=0;
+
+// -------------- Drone Frame Generation -----------------
+const cache={};
+function drawRotor(ctx,cx,cy,r,angle,color,tipColor,thick,tipLen){
+  const len = r; const w = thick; ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle); ctx.fillStyle=color; ctx.fillRect(-len/2,-w/2,len, w); ctx.fillStyle=tipColor; ctx.fillRect(len/2 - tipLen,-w/2, tipLen, w); ctx.restore(); }
+function drawBody(ctx,size,fill,diode,diodeSize){
+  const pad=4; const r= Math.max(2, size*0.17); const w=size-pad*2; const h=w; ctx.beginPath(); ctx.moveTo(pad+r,pad); ctx.lineTo(pad+w-r,pad); ctx.quadraticCurveTo(pad+w,pad,pad+w,pad+r); ctx.lineTo(pad+w,pad+h-r); ctx.quadraticCurveTo(pad+w,pad+h,pad+w-r,pad+h); ctx.lineTo(pad+r,pad+h); ctx.quadraticCurveTo(pad,pad+h,pad,pad+h-r); ctx.lineTo(pad,pad+r); ctx.quadraticCurveTo(pad,pad,pad+r,pad); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.stroke(); ctx.fillStyle=diode; ctx.fillRect(size/2 - diodeSize/2, size/2 - diodeSize/2, diodeSize, diodeSize); }
+
+function makeFrames(variant, palette){
+  const key = variant.id+'|'+palette.name+'|'+params.frameCount.value+'|'+variant.size+'|'+params.rotorLen.value+'|'+params.rotorThick.value+'|'+params.tipLen.value+'|'+params.diodeSize.value+'|'+variant.spinMul+'|'+(variant.pulse?1:0)+'|'+(variant.jitter?1:0)+'|'+(variant.bob?1:0);
+  if(cache[key]) return cache[key];
+  const fc = parseInt(params.frameCount.value);
+  const frames=[]; const baseSize=variant.size;
+  for(let f=0; f<fc; f++){
+    const c=document.createElement('canvas'); c.width=c.height=baseSize; const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=false;
+    const spinAngle = (f/fc)*Math.PI*2; const r = baseSize * (parseInt(params.rotorLen.value)/100)/2; const thick = Math.max(1, Math.round(baseSize*(parseInt(params.rotorThick.value)/100)/2));
+    const tipLen = parseInt(params.tipLen.value);
+    const diodeSize = parseInt(params.diodeSize.value);
+    const jitterPhase = variant.jitter? Math.sin(f*0.7)*0.3 : 0;
+    const cx=baseSize/2, cy=baseSize/2;
+    for(let i=0;i<4;i++){
+      const a = spinAngle + i*Math.PI/2 + jitterPhase*(i%2?1:-1);
+      drawRotor(ctx, cx + Math.cos(a)*3, cy + Math.sin(a)*3, r, a, palette.blade, variant.role==='player'? palette.player : palette.enemy, thick, tipLen);
+    }
+    drawBody(ctx, baseSize, variant.role==='player'? '#22343f' : '#22292f', variant.role==='player'? palette.player : palette.enemy, diodeSize);
+    if(variant.pulse){
+      const amp = parseInt(params.pulseAmp.value)/100; const pulse = 0.55 + Math.sin(f/fc * Math.PI*2)*amp;
+      ctx.strokeStyle = (variant.pulseColor||'rgba(255,120,120,') + (0.25 + 0.35*pulse).toFixed(2)+')'; ctx.lineWidth=variant.pulseWidth||2; ctx.beginPath(); ctx.arc(cx,cy, baseSize*0.48, 0, Math.PI*2); ctx.stroke();
+    }
+    frames.push(c);
+  }
+  cache[key]=frames; return frames;
+}
+
+// -------------- Live Stage Simulation -----------------
+const stageCanvas = Q('stageCanvas'); const sctx = stageCanvas.getContext('2d');
+let drones=[]; const MAX=60;
+function spawnDrones(){
+  drones=[]; const palette = palettes[activePaletteIndex];
+  for(const v of variants){
+    for(let i=0;i< (v.role==='enemy'? (v.id==='fragment'?3:2):1); i++){
+      drones.push({ v, x: 100+Math.random()*600, y: 80+Math.random()*340, t: Math.random()*10, frames: makeFrames(v,palette) });
+    }
+  }
+}
+
+function rebuildAll(){ cacheClear(); spawnDrones(); buildThumbs(); }
+function cacheClear(){ Object.keys(cache).forEach(k=> delete cache[k]); }
+
+function buildThumbs(){
+  const thumbs=document.getElementById('thumbs'); thumbs.innerHTML='';
+  const pal=palettes[activePaletteIndex];
+  for(const v of variants){
+    const frames = makeFrames(v,pal); const sample=[0, Math.floor(frames.length/4), Math.floor(frames.length/2), frames.length-1];
+    const wrap=document.createElement('div'); wrap.className='thumb';
+    wrap.innerHTML='<div style="color:#cfe;font-size:10px">'+v.id+'</div>';
+    sample.forEach(si=>{ const can=document.createElement('canvas'); can.width=frames[0].width; can.height=frames[0].height; can.getContext('2d').drawImage(frames[si],0,0); wrap.appendChild(can); });
+    thumbs.appendChild(wrap);
+  }
+}
+
+let lastPerf=performance.now(); let frameCountPerf=0; let avgMs=0; let elapsed=0;
+function loop(){
+  const now=performance.now(); const dt=(now-lastPerf)/1000; lastPerf=now; elapsed+=dt;
+  const pal=palettes[activePaletteIndex];
+  sctx.clearRect(0,0,stageCanvas.width,stageCanvas.height);
+  // animate drones
+  const baseSpin = parseInt(params.spinFPS.value);
+  const fc = parseInt(params.frameCount.value);
+  drones.forEach(d=>{
+    d.t += dt * baseSpin * d.v.spinMul / fc; // frame progression
+    const frames = makeFrames(d.v,pal); const idx = Math.floor(d.t*fc)%frames.length; const img = frames[idx];
+    const bob = d.v.bob ? Math.sin((d.t+ d.v.size)*2) * parseInt(params.bobAmp.value) : 0;
+    sctx.imageSmoothingEnabled=false;
+    sctx.drawImage(img, d.x - img.width/2, d.y - img.height/2 + bob);
+    // collision radius display
+    sctx.strokeStyle='rgba(255,255,255,0.08)'; sctx.beginPath(); sctx.arc(d.x, d.y + bob, img.width*0.42, 0, Math.PI*2); sctx.stroke();
+  });
+  frameCountPerf++; if(frameCountPerf>=30){ avgMs = (performance.now()-now); frameCountPerf=0; document.getElementById('perf').textContent = `~${avgMs.toFixed(2)}ms render slice / 30f (${drones.length} drones)`; }
+  requestAnimationFrame(loop);
+}
+
+spawnDrones(); buildThumbs(); loop();
+
+// -------------- Export Tools -----------------
+Q('exportBtn').onclick=()=>{
+  const pal=palettes[activePaletteIndex];
+  const out={ palette: pal.name, variants:{}};
+  for(const v of variants){ const frames=makeFrames(v,pal); out.variants[v.id]=frames.map(c=> c.toDataURL('image/png')); }
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='drone_frames_'+pal.name+'.json'; a.click();
+  Q('exportStatus').textContent='Exported JSON with embedded PNG data URLs.'; setTimeout(()=>Q('exportStatus').textContent='',4000);
+};
+Q('atlasBtn').onclick=()=>{
+  const pal=palettes[activePaletteIndex]; const pad=2; let totalW=0; let rowH=0; const rows=[];
+  // Simple single-row atlas
+  for(const v of variants){ const fs=makeFrames(v,pal); fs.forEach(f=>{ rows.push({img:f,x:totalW}); totalW+=f.width+pad; rowH=Math.max(rowH,f.height); }); }
+  const can=document.createElement('canvas'); can.width=totalW; can.height=rowH; const cctx=can.getContext('2d'); let x=0; const meta={frames:{},w:can.width,h:can.height,palette:pal.name};
+  for(const v of variants){ const fs=makeFrames(v,pal); meta.frames[v.id]=[]; fs.forEach(f=>{ cctx.drawImage(f,x,0); meta.frames[v.id].push({x,y:0,w:f.width,h:f.height}); x+=f.width+pad; }); }
+  const dataURL=can.toDataURL('image/png');
+  const blob=new Blob([JSON.stringify({atlas:dataURL,meta},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='drone_atlas_'+pal.name+'.json'; a.click();
+  Q('exportStatus').textContent='Exported atlas JSON.'; setTimeout(()=>Q('exportStatus').textContent='',4000);
+};
+</script>
+</body>
+</html>

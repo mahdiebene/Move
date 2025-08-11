@@ -70,25 +70,33 @@
         ctx.fill();
       }
     }
-    // Sprite render (fallback to circle if factory missing)
-    if (window.SpriteFactory){
-      const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000;
-      const spr = SpriteFactory.get('player_core', this.color, t);
+    // Sprite render: prefer DroneFactory, fallback to old SpriteFactory, then circle
+    const t = (typeof performance!=='undefined' && performance.now ? performance.now() : Date.now())/1000;
+    let drew = false;
+    if (window.DroneFactory){
+      const spr = DroneFactory.get('player', this.color, t);
       if (spr && spr.canvas){
-        const s = spr.size * this.spriteScale; const half = s/2;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s);
-      } else { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill(); }
-    } else { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill(); }
+        const s = spr.size * 1.0; // already sized
+        const half = s/2; ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(spr.canvas, this.x - half, this.y - half, s, s); drew = true;
+        // adjust collision radius to match drone visuals once
+        this.r = spr.radius; 
+      }
+    }
+    if (!drew && window.SpriteFactory){
+      const spr = SpriteFactory.get('player_core', this.color, t);
+      if (spr && spr.canvas){ const s = spr.size * this.spriteScale; const half = s/2; ctx.imageSmoothingEnabled=false; ctx.drawImage(spr.canvas, this.x-half, this.y-half, s, s); drew = true; }
+    }
+    if (!drew){ ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); }
 
     // Dash cooldown ring UI
     const ready = this._cooldownTimer <= 0;
     const pct = ready ? 1 : 1 - (this._cooldownTimer / this.dashCooldown);
     ctx.save();
-    ctx.strokeStyle = ready ? '#7fff8a' : '#88a9ff';
-    ctx.lineWidth = 2;
+  ctx.strokeStyle = ready ? '#7fff8a' : '#88a9ff';
+  ctx.lineWidth = 1.5;
     ctx.beginPath();
-  ctx.arc(this.x, this.y, this.r + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * pct));
+	ctx.arc(this.x, this.y, this.r + 11, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * pct));
     ctx.stroke();
     ctx.restore();
   };

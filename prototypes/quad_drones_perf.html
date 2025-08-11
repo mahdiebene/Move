@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Quad Drone Perf Prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { --bg:#0c1116; --panel:#16202a; --accent:#4fc2ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#d8e2ec; font:12px system-ui,Segoe UI,Roboto,sans-serif; display:flex; min-height:100vh; }
+  aside { width:250px; background:var(--panel); border-right:1px solid #223645; padding:14px 16px; }
+  h1 { margin:0 0 10px; font-size:17px; font-weight:600; color:#fff; }
+  label { display:flex; align-items:center; justify-content:space-between; margin:6px 0; }
+  input[type=range] { width:120px; }
+  button { background:#223645; color:#cfe; border:1px solid #2c4d60; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px; }
+  button:hover { background:#2a566d; }
+  #fps { font:600 14px/1 monospace; color:#9fefad; }
+  #canvas { flex:1; background:#081016; display:block; image-rendering:pixelated; cursor:crosshair; }
+  small { color:#7d93a8; font-size:11px; line-height:1.4; display:block; margin-top:8px; }
+  .row { margin:4px 0 10px; }
+  .pill { display:inline-block; padding:2px 6px; background:#223645; border-radius:999px; margin:2px 2px 0 0; font-size:10px; color:#9ab; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Perf Drone Lab</h1>
+  <label><span>Drones</span><input id="count" type="range" min="1" max="600" value="120"></label>
+  <label><span>Rotor Frames</span><input id="rotFrames" type="range" min="4" max="40" value="16"></label>
+  <label><span>Body Size</span><input id="bodySize" type="range" min="18" max="42" value="26"></label>
+  <label><span>Rotor Radius %</span><input id="rotorRadius" type="range" min="18" max="34" value="26"></label>
+  <label><span>Spin FPS</span><input id="spinFPS" type="range" min="4" max="40" value="18"></label>
+  <label><span>Draw Mode</span>
+    <select id="mode">
+      <option value="cached">Cached (pre-render)</option>
+      <option value="live">Live rotate (no cache)</option>
+    </select>
+  </label>
+  <div class="row">
+    <span class="pill" id="avgMs">— ms</span>
+    <span class="pill" id="fps">— fps</span>
+    <span class="pill" id="cpu">—% canvas slice</span>
+  </div>
+  <button id="regenBtn">Rebuild Cache</button>
+  <small>
+    Goal: show extremely cheap spinning fans. Body + hubs are prerendered once. Rotor blades are pre-rotated into N small frames (shared across all drones). On each frame we only blit 4 rotor images + body. Toggle Live mode to compare cost of doing 4*3 path rotations per drone per frame.<br><br>
+    Tips: Reduce Rotor Frames for speed; increase for smoother spin. With 500+ drones cached mode should remain under a few ms on modest hardware.
+  </small>
+</aside>
+<canvas id="canvas" width="1280" height="720"></canvas>
+<script>
+// ------------------- Utility -------------------
+const TAU = Math.PI*2;
+function rand(a=1,b=0){return b+Math.random()*(a-b)}
+
+// ------------------- Drone Sprite System -------------------
+const DroneFactory = (()=>{
+  const bodyCache = new Map(); // key: size|paletteId -> canvas
+  const rotorCache = new Map(); // key: bladeColor|tipColor|frames|bladeCount|r|w -> {frames:[]}
+  const palette = { player:'#42c9ff', enemy:'#ff6363', accent:'#ffe28a', line:'rgba(255,255,255,0.25)' };
+  
+  function makeBody(size, role){
+    const key = size+'|'+role;
+    if(bodyCache.has(key)) return bodyCache.get(key);
+    const c = document.createElement('canvas'); c.width=c.height=size;
+    const ctx = c.getContext('2d'); ctx.lineWidth=1; ctx.lineJoin='round';
+    ctx.translate(size/2,size/2);
+    // Arms (lines)
+    ctx.strokeStyle=palette.line;
+    const innerArm = size*0.12; // where arm starts
+    const armLen = size*0.24;   // shorter to account for reduced rotor size
+    for(let i=0;i<4;i++){
+      const a = i*TAU/4 + TAU/8; // slight rotation for style
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)* innerArm, Math.sin(a)*innerArm);
+      ctx.lineTo(Math.cos(a)*armLen, Math.sin(a)*armLen);
+      ctx.stroke();
+    }
+    // Body (rounded capsule)
+    const w=size*0.42, h=size*0.78, r=Math.min(w,h)*0.3;
+    ctx.rotate(Math.PI/2); // vertical orientation
+    ctx.beginPath();
+    ctx.moveTo(-w/2 + r, -h/2);
+    ctx.lineTo(w/2 - r, -h/2);
+    ctx.quadraticCurveTo(w/2, -h/2, w/2, -h/2 + r);
+    ctx.lineTo(w/2, h/2 - r);
+    ctx.quadraticCurveTo(w/2, h/2, w/2 - r, h/2);
+    ctx.lineTo(-w/2 + r, h/2);
+    ctx.quadraticCurveTo(-w/2, h/2, -w/2, h/2 - r);
+    ctx.lineTo(-w/2, -h/2 + r);
+    ctx.quadraticCurveTo(-w/2, -h/2, -w/2 + r, -h/2);
+    ctx.closePath();
+    ctx.fillStyle = role==='player'? '#1c3240' : '#20262c';
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.35)';
+    ctx.stroke();
+    // Center diode
+    ctx.fillStyle = role==='player'? palette.player : palette.enemy;
+    const d = Math.max(2, size*0.12); ctx.fillRect(-d/2,-d/2,d,d);
+    bodyCache.set(key,c); return c;
+  }
+
+  function makeRotors(options){
+    const {bladeColor, tipColor, frames, r, w, bladeCount} = options;
+    const key = [bladeColor,tipColor,frames,r,w,bladeCount].join('|');
+    if(rotorCache.has(key)) return rotorCache.get(key);
+    const pack = { frames: [] };
+    for(let f=0; f<frames; f++){
+      const ang = f/frames * TAU;
+      const c=document.createElement('canvas');
+      const side = Math.ceil(r*2.2); c.width=c.height=side;
+      const ctx=c.getContext('2d'); ctx.translate(side/2,side/2); ctx.rotate(ang);
+      for(let b=0;b<bladeCount;b++){
+        ctx.save(); ctx.rotate(b*TAU/bladeCount);
+        ctx.fillStyle=bladeColor;
+        ctx.fillRect(0,-w/2,r,w); // main blade
+        ctx.fillStyle=tipColor; ctx.fillRect(r-w,-w/2,w,w); // tip block
+        ctx.restore();
+      }
+      // Hub
+      ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(0,0,w*0.9,0,TAU); ctx.fill();
+      pack.frames.push(c);
+    }
+    rotorCache.set(key,pack); return pack;
+  }
+
+  function getConfig(){
+    return {
+      rotorFrames: parseInt(document.getElementById('rotFrames').value),
+      bodySize: parseInt(document.getElementById('bodySize').value),
+      rotorRadiusPct: parseInt(document.getElementById('rotorRadius').value),
+      spinFPS: parseInt(document.getElementById('spinFPS').value)
+    };
+  }
+
+  function build(role){
+    const cfg = getConfig();
+    const body = makeBody(cfg.bodySize, role);
+    const rotorRadius = cfg.bodySize * (cfg.rotorRadiusPct/100); // r is blade length
+    const rotor = makeRotors({ bladeColor:'#7f8890', tipColor: role==='player'? palette.player : palette.enemy, frames: cfg.rotorFrames, r: rotorRadius, w: Math.max(2, Math.round(cfg.bodySize*0.10)), bladeCount:3 });
+    return { body, rotor, size: cfg.bodySize, rotorRadius };
+  }
+
+  function collisionRadius(size){ return size*0.43; }
+
+  return { build, collisionRadius, getConfig };
+})();
+
+// ------------------- World -------------------
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const drones = [];
+let modeSelect = document.getElementById('mode');
+let lastSpawnCfg = '';
+
+function spawn(){
+  drones.length=0;
+  const n = parseInt(document.getElementById('count').value);
+  const cfg = DroneFactory.getConfig();
+  for(let i=0;i<n;i++){
+    const role = (i%7===0)? 'player':'enemy';
+    const spr = DroneFactory.build(role);
+    drones.push({ role, spr, x: rand(canvas.width), y: rand(canvas.height), vx: rand(-20,20), vy: rand(-20,20), rot: rand(0,100), spin: rand(0.6,1.4) });
+  }
+  lastSpawnCfg = JSON.stringify(cfg);
+}
+
+// Initial spawn
+spawn();
+
+// ------------------- Loop -------------------
+let last=performance.now();
+let accum=0, frames=0, fps=0, avgDrawMs=0; // metrics
+function loop(){
+  const now=performance.now();
+  const dt=(now-last)/1000; last=now;
+  const cfg = DroneFactory.getConfig();
+  // If body size changed rebuild
+  const cfgKey = JSON.stringify(cfg);
+  if(cfgKey !== lastSpawnCfg){ spawn(); }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const startDraw = performance.now();
+  const rotorFrames = cfg.rotorFrames;
+  const spinFPS = cfg.spinFPS;
+  const live = modeSelect.value==='live';
+  // Draw drones
+  for(const d of drones){
+    // Move
+    d.x += d.vx*dt; d.y += d.vy*dt;
+    if(d.x<0||d.x>canvas.width) d.vx*=-1;
+    if(d.y<0||d.y>canvas.height) d.vy*=-1;
+    const body = d.spr.body; const size = d.spr.size;
+    ctx.drawImage(body, d.x-size/2, d.y-size/2);
+    // Rotor frames / live draw
+  // Hub offsets (distance from center to hub). Shorter arms so hubs sit closer to body like reference.
+  const off = size*0.36;
+    const baseT = now/1000 * spinFPS * d.spin;
+    const frameIdx = Math.floor(baseT * rotorFrames) % rotorFrames;
+    if(live){
+      // Live path draw (heavier) using configured rotor radius
+      const r = d.spr.rotorRadius; // already scaled by slider
+      const w = Math.max(2, Math.round(size*0.10));
+      drawRotorLive(d.x-off, d.y-off, baseT);
+      drawRotorLive(d.x+off, d.y-off, baseT+0.1);
+      drawRotorLive(d.x+off, d.y+off, baseT+0.2);
+      drawRotorLive(d.x-off, d.y+off, baseT+0.3);
+      function drawRotorLive(x,y,t){
+        ctx.save(); ctx.translate(x,y); ctx.rotate(t%TAU);
+        for(let b=0;b<3;b++){
+          ctx.save(); ctx.rotate(b*TAU/3); ctx.fillStyle='#7f8890';
+          ctx.fillRect(0,-w/2,r,w); ctx.fillStyle=(d.role==='player')? '#42c9ff':'#ff6363'; ctx.fillRect(r-w,-w/2,w,w); ctx.restore();
+        }
+        ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(0,0,w*0.9,0,TAU); ctx.fill();
+        ctx.restore();
+      }
+    } else {
+      const rotorFramesPack = d.spr.rotor;
+      const img = rotorFramesPack.frames[frameIdx];
+      const rw = img.width, rh = img.height;
+      ctx.drawImage(img, d.x-off - rw/2, d.y-off - rh/2);
+      ctx.drawImage(img, d.x+off - rw/2, d.y-off - rh/2);
+      ctx.drawImage(img, d.x+off - rw/2, d.y+off - rh/2);
+      ctx.drawImage(img, d.x-off - rw/2, d.y+off - rh/2);
+    }
+  }
+  const drawTime = performance.now()-startDraw;
+  accum += dt; frames++; avgDrawMs += drawTime;
+  if(accum>=0.5){
+    fps = (frames/accum); const avg = (avgDrawMs/frames); // avg draw slice
+    document.getElementById('fps').textContent = fps.toFixed(0)+' fps';
+    document.getElementById('avgMs').textContent = avg.toFixed(2)+' ms';
+    // Rough % of 16.67ms frame budget
+    document.getElementById('cpu').textContent = (avg/16.67*100).toFixed(1)+'% frame';
+    accum=0; frames=0; avgDrawMs=0;
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ------------------- Events -------------------
+['count','rotFrames','bodySize','rotorRadius','spinFPS','mode'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{ if(id==='count') spawn(); });
+});
+
+canvas.addEventListener('click', e=>{
+  // Add a burst of new drones at click for stress
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  for(let i=0;i<30;i++){
+    const spr = DroneFactory.build('enemy');
+    drones.push({ role:'enemy', spr, x, y, vx: rand(-80,80), vy: rand(-80,80), rot: rand(0,100), spin: rand(0.6,1.4) });
+  }
+});
+
+document.getElementById('regenBtn').onclick=()=>{ spawn(); };
+</script>
+</body>
+</html>

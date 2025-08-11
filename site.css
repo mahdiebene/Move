@@ -1,0 +1,25 @@
+html,body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#0d1016;color:#e6edf3;min-height:100%;}
+:root{--accent:#4fc2ff;--panel:#16222e;--panel2:#1d2c39;--radius:14px;}
+a{text-decoration:none;color:var(--accent);}a:hover{color:#78d9ff;}
+header{padding:28px 40px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.logo{font:600 24px/1 system-ui;color:#fff;letter-spacing:.5px;}
+/* Launcher specific tweaks (minimal; inline styles handle layout) */
+/* Buttons reuse existing palette; could extract shared button class later */
+nav a{margin:0 14px;font-size:14px;color:#9cb3c9;}nav a:hover{color:#fff;}
+main{padding:10px 40px 60px;max-width:1200px;margin:0 auto;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:28px;margin-top:30px;}
+.card{background:linear-gradient(155deg,#16222e,#101821);border:1px solid #203042;border-radius:var(--radius);padding:16px 18px;display:flex;flex-direction:column;position:relative;box-shadow:0 4px 16px -6px rgba(0,0,0,.6);}
+.card h3{margin:4px 0 10px;font:600 18px system-ui;color:#fff;}
+.card p{margin:0 0 14px;font-size:13px;line-height:1.4;color:#9cb3c9;}
+.tag{display:inline-block;background:#20384a;color:#8dd4ff;font-size:10px;padding:3px 6px;border-radius:40px;margin:0 6px 6px 0;letter-spacing:.5px;text-transform:uppercase;}
+.playBtn{margin-top:auto;display:inline-block;background:var(--accent);color:#04202c;font-weight:600;padding:10px 14px;border-radius:8px;font-size:13px;text-align:center;}
+.playBtn:hover{background:#66ccff;}
+.hero{display:flex;flex-wrap:wrap;align-items:center;gap:40px;padding:20px 0 10px;}
+.heroText{flex:1 1 380px;}
+.heroText h1{margin:0 0 14px;font:600 44px/1.05 system-ui;color:#fff;background:linear-gradient(90deg,#49c2ff,#8aa8ff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.heroText p{margin:0 0 18px;font-size:16px;line-height:1.5;color:#b8c7d6;max-width:620px;}
+.heroArt{flex:1 1 340px;min-height:260px;background:radial-gradient(circle at 40% 40%,#1a2b39,#0d141c);border:1px solid #203042;border-radius:var(--radius);position:relative;overflow:hidden;}
+footer{padding:30px 40px 60px;font-size:12px;color:#5f7386;text-align:center;}
+.badgeBar{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;}
+.badge{background:#203042;color:#9cb3c9;font-size:11px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;}
+@media (max-width:760px){.heroText h1{font-size:34px;}}

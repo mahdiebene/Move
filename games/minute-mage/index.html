@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Minute Mage</title>
+  <link rel="stylesheet" href="../../site.css" />
+  <style>canvas{background:#0b0c11;box-shadow:0 0 40px rgba(0,0,0,.5);image-rendering:pixelated;}#hud{position:fixed;left:12px;top:10px;font-size:14px;opacity:.9;}</style>
+</head>
+<body>
+  <a href="../../index.html" style="position:absolute;left:10px;bottom:10px;color:#7fd;font:12px system-ui;">← All Games</a>
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+    <canvas id="game" width="960" height="540"></canvas>
+  </div>
+  <div id="hud">WASD/Arrows move · Space dash · R restart</div>
+  <!-- Use shared root engine scripts instead of local stubs -->
+  <script src="../../src/utils.js"></script>
+  <script src="../../src/input.js"></script>
+  <script src="../../src/particles.js"></script>
+  <script src="../../src/audio.js"></script>
+  <script src="../../src/sprites.js"></script>
+  <script src="../../src/droneFactory.js"></script>
+  <script src="../../src/entities/player.js"></script>
+  <script src="../../src/entities/orb.js"></script>
+  <script src="../../src/game.js"></script>
+  <script src="../../src/main.js"></script>
+</body>
+</html>

@@ -1,30 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Minute Mage (Prototype)</title>
-  <style>
-    html, body { height: 100%; margin: 0; background:#0e0f14; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    #wrap { display:flex; align-items:center; justify-content:center; height:100%; }
-    canvas { background:#0b0c11; box-shadow:0 0 40px rgba(0,0,0,.5); image-rendering: pixelated; }
-    #hud { position: fixed; left: 12px; top: 10px; font-size: 14px; opacity: .9; }
-    a { color: #7fd; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Astro-Games</title>
+<link rel="stylesheet" href="site.css" />
+<meta name="description" content="Play small focused indie web games instantly. Minute sessions. Zero friction." />
 </head>
 <body>
-  <div id="wrap">
-    <canvas id="game" width="960" height="540"></canvas>
+<header>
+  <div class="logo">Astro-Games</div>
+  <nav>
+    <a href="#games">Games</a>
+    <a href="#about">About</a>
+    <a href="#tech">Tech</a>
+  </nav>
+</header>
+<main>
+  <section class="hero">
+    <div class="heroText">
+  <h1>Snackable <br />Arcade‑Scale Games</h1>
+      <p>Quick to learn, deep to master. A growing collection of handcrafted, minute-long indie experiences you can play directly in your browser—no installs, no tracking, pure gameplay.</p>
+      <div class="badgeBar">
+        <div class="badge">⚡ Fast Loads</div>
+        <div class="badge">🎮 Gamepad Ready</div>
+        <div class="badge">🌈 Accessibility Options</div>
+        <div class="badge">📅 Daily Modes</div>
+      </div>
+    </div>
+    <div class="heroArt" id="heroCanvasWrap">
+      <canvas id="heroCanvas" width="360" height="260" style="width:100%;height:100%;image-rendering:pixelated;"></canvas>
+    </div>
+  </section>
+  <section id="games">
+    <h2 style="margin:46px 0 6px;font:600 22px system-ui;color:#fff">Launch Titles</h2>
+    <p style="margin:0 0 10px;font-size:14px;color:#9cb3c9;max-width:760px">More games are coming. Each one is a focused prototype exploring a single distilled mechanic loop. Iterate with us—feedback welcome.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Minute Mage</h3>
+        <p>Dodge swarming drones, chain perfect dashes, hoover orbs to push your multiplier. Daily seeded runs & lightweight relic drafts add variety.</p>
+        <div>
+          <span class="tag">Action</span>
+          <span class="tag">1‑Minute Runs</span>
+          <span class="tag">Procedural</span>
+        </div>
+  <button class="playBtn" data-game="minute-mage">Play ▶</button>
+      </div>
+      <div class="card" style="opacity:.55;filter:grayscale(.4);">
+        <h3>Coming Soon</h3>
+        <p>New experimental mini game in active prototyping. Stay tuned.</p>
+        <div>
+          <span class="tag">TBD</span>
+          <span class="tag">Prototype</span>
+        </div>
+        <div class="playBtn" style="pointer-events:none;background:#203042;color:#4d5d6a;">In Dev</div>
+      </div>
+    </div>
+  </section>
+  <section id="about" style="margin-top:70px;max-width:880px;">
+    <h2 style="font:600 22px system-ui;margin:0 0 10px;color:#fff;">About</h2>
+    <p style="font-size:14px;line-height:1.55;color:#9cb3c9;margin:0 0 14px;">This site is an evolving lab for rapid‑iteration arcade concepts. Games share a small engine layer (input, particles, audio SFX synthesizer, procedural sprites) so we can prototype new ideas fast. Everything runs client‑side.</p>
+    <p style="font-size:14px;line-height:1.55;color:#9cb3c9;margin:0 0 14px;" id="tech">Tech stack: Vanilla JS, Canvas 2D, procedural art generation, tiny WebAudio synth, deterministic daily seeds (xorshift). No frameworks, minimal bundle size.</p>
+  </section>
+</main>
+<footer>
+  © <span id="year"></span> Indie Mini Arcade · Feedback welcome · <a href="#" style="color:#8dd4ff;">Contact</a>
+</footer>
+<div id="gameLauncher" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:500;">
+  <div id="launcherWindow" style="background:#0d141c;border:1px solid #203042;border-radius:14px;box-shadow:0 20px 50px -20px rgba(0,0,0,.7);width:980px;max-width:95vw;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#14202b;border-bottom:1px solid #203042;">
+      <strong id="launcherTitle" style="font:600 14px system-ui;color:#fff;">Game</strong>
+      <span id="launcherStatus" style="font-size:11px;color:#7fd;">Loading...</span>
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button id="btnSmall" title="Window Size" style="background:#203042;border:1px solid #2b3c4b;color:#9cb3c9;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">S</button>
+        <button id="btnMedium" style="background:#203042;border:1px solid #2b3c4b;color:#9cb3c9;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">M</button>
+        <button id="btnLarge" style="background:#203042;border:1px solid #2b3c4b;color:#9cb3c9;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">L</button>
+        <button id="btnFullscreen" title="Fullscreen" style="background:#203042;border:1px solid #2b3c4b;color:#9cb3c9;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">⛶</button>
+        <button id="btnOpenTab" title="Open In New Tab" style="background:#203042;border:1px solid #2b3c4b;color:#9cb3c9;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">↗</button>
+        <button id="btnClose" title="Close" style="background:#35222a;border:1px solid #4c2c38;color:#ff8f9f;font:600 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+    <div style="position:relative;background:#0b0c11;">
+      <iframe id="gameFrame" src="" loading="lazy" allowfullscreen style="display:block;border:0;width:960px;height:560px;background:#0b0c11;"></iframe>
+      <div id="loadingOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:500 13px system-ui;color:#9cb3c9;background:rgba(10,15,20,0.75);">Loading…</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#14202b;border-top:1px solid #203042;">
+      <button class="quickGame" data-game="minute-mage" style="background:#203042;border:1px solid #2b3c4b;color:#8dd4ff;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">Minute Mage</button>
+      <button disabled style="background:#1a2430;border:1px solid #283544;color:#4c5d6a;font:500 11px system-ui;padding:6px 10px;border-radius:6px;">Coming Soon</button>
+      <span style="margin-left:auto;font-size:11px;color:#5f7386;">Esc: Close · F: Fullscreen</span>
+    </div>
   </div>
-  <div id="hud">WASD/Arrows to move. Space to dash. R to restart.</div>
-  <script src="src/utils.js"></script>
-  <script src="src/input.js"></script>
-  <script src="src/particles.js"></script>
-  <script src="src/audio.js"></script>
-  <script src="src/sprites.js"></script>
-  <script src="src/entities/player.js"></script>
-  <script src="src/entities/orb.js"></script>
-  <script src="src/game.js"></script>
-  <script src="src/main.js"></script>
+</div>
+<script>
+(function(){
+  const can=document.getElementById('heroCanvas'); if(!can) return; const ctx=can.getContext('2d');
+  const drones=[]; const N=14; let t0=performance.now();
+  function rand(a,b){return a+Math.random()*(b-a);} 
+  function makeFallback(){const c=document.createElement('canvas');c.width=c.height=24;const g=c.getContext('2d');g.fillStyle='#2e3e4a';g.fillRect(8,8,8,8);g.fillStyle='#49c2ff';g.fillRect(11,11,2,2);return c;}
+  for(let i=0;i<N;i++){drones.push({x:rand(20,340),y:rand(20,240),r:rand(16,28),a:Math.random()*Math.PI*2,s:rand(0.5,1.4)});} 
+  function loop(){const now=performance.now();const dt=(now-t0)/1000;t0=now;ctx.clearRect(0,0,can.width,can.height);ctx.fillStyle='#0d151d';ctx.fillRect(0,0,can.width,can.height);drones.forEach(d=>{d.x+=Math.sin(now/1000+d.a)*0.15;d.y+=Math.cos(now/1100+d.a)*0.15;const t=now/1000*d.s;let drew=false;if(window.DroneFactory){const spr=DroneFactory.get('enemy_basic','#49c2ff',t);if(spr){ctx.imageSmoothingEnabled=false;ctx.globalAlpha=0.5;ctx.drawImage(spr.canvas,d.x-spr.size/2,d.y-spr.size/2,spr.size,spr.size);ctx.globalAlpha=1;drew=true;}}if(!drew){const fb=makeFallback();ctx.globalAlpha=0.35;ctx.drawImage(fb,d.x-fb.width/2,d.y-fb.height/2);ctx.globalAlpha=1;} });requestAnimationFrame(loop);} requestAnimationFrame(loop);})();
+  document.getElementById('year').textContent=new Date().getFullYear();
+  // Launcher logic
+  const launcher = document.getElementById('gameLauncher');
+  const frame = document.getElementById('gameFrame');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const titleEl = document.getElementById('launcherTitle');
+  const statusEl = document.getElementById('launcherStatus');
+  function openGame(id){
+    const meta = { 'minute-mage': { title:'Minute Mage', path:'games/minute-mage/index.html' } }[id];
+    if(!meta) return; launcher.style.display='flex'; loadingOverlay.style.display='flex'; statusEl.textContent='Loading...';
+    document.body.style.overflow='hidden';
+  // Set src then focus once load completes
+  frame.src = meta.path; titleEl.textContent = meta.title; history.pushState({modal:true},'', '#play-'+id);
+  // If already loaded instantly (cache), attempt focus
+  try { frame.setAttribute('tabindex','0'); frame.focus({preventScroll:true}); } catch(e){}
+  }
+  function closeLauncher(){ launcher.style.display='none'; frame.src=''; if(location.hash.startsWith('#play-')) history.pushState({},'', location.pathname); }
+  const _closeOrig = closeLauncher;
+  closeLauncher = function(){ _closeOrig(); document.body.style.overflow=''; };
+  document.querySelectorAll('.playBtn[data-game]').forEach(btn=> btn.addEventListener('click',()=> openGame(btn.dataset.game)) );
+  document.querySelectorAll('.quickGame[data-game]').forEach(btn=> btn.addEventListener('click',()=> openGame(btn.dataset.game)) );
+  document.getElementById('btnClose').onclick = closeLauncher;
+  document.getElementById('btnOpenTab').onclick = ()=> { if(frame.src) window.open(frame.src,'_blank'); };
+  function setSize(w,h){ frame.style.width=w+'px'; frame.style.height=h+'px'; }
+  document.getElementById('btnSmall').onclick = ()=> setSize(640,360);
+  document.getElementById('btnMedium').onclick = ()=> setSize(800,450);
+  document.getElementById('btnLarge').onclick = ()=> setSize(960,540);
+  document.getElementById('btnFullscreen').onclick = ()=> { if(frame.requestFullscreen) frame.requestFullscreen(); };
+  frame.addEventListener('load', ()=> { loadingOverlay.style.display='none'; statusEl.textContent=''; try { frame.focus({preventScroll:true}); } catch(e){} });
+  window.addEventListener('keydown', e=> { if(e.key==='Escape' && launcher.style.display==='flex'){ closeLauncher(); } if(e.key.toLowerCase()==='f' && launcher.style.display==='flex'){ document.getElementById('btnFullscreen').click(); }});
+  // Suppress page scroll while modal active for game control keys
+  window.addEventListener('keydown', e=>{
+    if(launcher.style.display==='flex'){
+      const blockKeys=[' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+      if(blockKeys.includes(e.key)) e.preventDefault();
+  // Ensure iframe has focus so game receives input
+  if(document.activeElement !== frame){ try { frame.focus({preventScroll:true}); } catch(err){} }
+    }
+  }, { passive:false });
+  // Deep link hash (#play-minute-mage)
+  if(location.hash.startsWith('#play-')){ openGame(location.hash.replace('#play-','')); }
+</script>
 </body>
 </html>
