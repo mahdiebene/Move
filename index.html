@@ -6,15 +6,7 @@
 <title>Astro-Games</title>
 <link rel="stylesheet" href="site.css" />
 <meta name="description" content="Play small focused indie web games instantly. Minute sessions. Zero friction." />
-<script>
-// TODO: Replace with real Firebase project credentials
-window.FB_CFG = {
-  apiKey: 'YOUR_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT',
-  appId: 'YOUR_APP_ID'
-};
-</script>
+<script src="firebase/config.js" defer></script>
 <script type="module" src="firebase/init.js"></script>
 </head>
 <body>

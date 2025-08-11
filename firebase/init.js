@@ -8,11 +8,14 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collecti
 
 // Inject your config via a global window.FB_CFG = {...}; before loading this, or edit below.
 const cfg = window.FB_CFG || {
-  apiKey: 'YOUR_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT',
-  appId: 'YOUR_APP_ID'
+  apiKey: 'MISSING_KEY',
+  authDomain: 'MISSING_DOMAIN',
+  projectId: 'MISSING_PROJECT',
+  appId: 'MISSING_APP_ID'
 };
+if(cfg.apiKey === 'MISSING_KEY') {
+  console.warn('[AstroBackend] Firebase config missing. Create firebase/config.js with your real keys (see config.example.js).');
+}
 
 export const app = initializeApp(cfg);
 export const auth = getAuth(app);
