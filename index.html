@@ -6,6 +6,16 @@
 <title>Astro-Games</title>
 <link rel="stylesheet" href="site.css" />
 <meta name="description" content="Play small focused indie web games instantly. Minute sessions. Zero friction." />
+<script>
+// TODO: Replace with real Firebase project credentials
+window.FB_CFG = {
+  apiKey: 'YOUR_KEY',
+  authDomain: 'YOUR_PROJECT.firebaseapp.com',
+  projectId: 'YOUR_PROJECT',
+  appId: 'YOUR_APP_ID'
+};
+</script>
+<script type="module" src="firebase/init.js"></script>
 </head>
 <body>
 <header>
@@ -15,6 +25,15 @@
     <a href="#about">About</a>
     <a href="#tech">Tech</a>
   </nav>
+  <div id="authBox" style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <button id="btnSignIn" style="background:#203042;border:1px solid #2b3c4b;color:#8dd4ff;font:500 12px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">Sign In</button>
+    <div id="userBadge" style="display:none;align-items:center;gap:8px;">
+      <img id="userPic" src="" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #2b3c4b;" />
+      <span id="userName" style="font:500 12px system-ui;color:#b8c7d6;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <span id="userStreak" style="font:600 11px system-ui;color:#ffd66b;"></span>
+      <button id="btnSignOut" title="Sign Out" style="background:#35222a;border:1px solid #4c2c38;color:#ff9faf;font:500 11px system-ui;padding:6px 10px;border-radius:6px;cursor:pointer;">✕</button>
+    </div>
+  </div>
 </header>
 <main>
   <section class="hero">
@@ -140,6 +159,29 @@
   }, { passive:false });
   // Deep link hash (#play-minute-mage)
   if(location.hash.startsWith('#play-')){ openGame(location.hash.replace('#play-','')); }
+  // Auth UI wiring
+  const btnIn = document.getElementById('btnSignIn');
+  const btnOut = document.getElementById('btnSignOut');
+  const userBadge = document.getElementById('userBadge');
+  const userName = document.getElementById('userName');
+  const userPic = document.getElementById('userPic');
+  const userStreak = document.getElementById('userStreak');
+  if(window.AstroBackend){
+    btnIn?.addEventListener('click', async()=>{ try { await AstroBackend.signInWithGoogle(); } catch(e){ console.warn(e);} });
+    btnOut?.addEventListener('click', ()=> AstroBackend.signOutUser());
+    AstroBackend.onUserChanged(async(u)=>{
+      if(u){
+        btnIn.style.display='none'; userBadge.style.display='flex';
+        userPic.src = u.photoURL || 'https://dummyimage.com/64x64/203042/ffffff&text=U';
+        userName.textContent = u.displayName || 'Player';
+        const doc = await AstroBackend.getUserDoc(u.uid); if(doc){ userStreak.textContent = doc.streakCount>0 ? `🔥${doc.streakCount}` : ''; }
+      } else {
+        btnIn.style.display='inline-block'; userBadge.style.display='none'; userStreak.textContent='';
+      }
+    });
+    // Update streak once per day after login
+    AstroBackend.onUserChanged(async(u)=>{ if(u){ try { await AstroBackend.updateStreak(u.uid, new Date().toISOString().slice(0,10)); const doc = await AstroBackend.getUserDoc(u.uid); if(doc){ userStreak.textContent = doc.streakCount>0 ? `🔥${doc.streakCount}` : ''; } } catch(e){} } });
+  }
 </script>
 </body>
 </html>
